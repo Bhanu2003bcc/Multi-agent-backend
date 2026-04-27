@@ -1,0 +1,181 @@
+version: "3.9"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Multi-Agent Research System — Full Stack
+#
+# Services:
+#   postgres       → Persistent storage for Spring Boot
+#   redis          → Cache + rate-limit state for Spring Boot
+#   python-agent   → Python FastAPI multi-agent pipeline
+#   spring-backend → This Spring Boot application
+#   prometheus     → Metrics scraping (optional)
+#   grafana        → Dashboard (optional)
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── PostgreSQL ─────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: research_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: research_db
+      POSTGRES_USER: research_user
+      POSTGRES_PASSWORD: research_pass
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U research_user -d research_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - research_net
+
+  # ── Redis ──────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: research_redis
+    restart: unless-stopped
+    command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - research_net
+
+  # ── Python FastAPI Multi-Agent Pipeline ────────────────────────────────────
+  python-agent:
+    build:
+      context: ../multi_agent_research     # path to your Python project
+      dockerfile: Dockerfile
+    container_name: research_python_agent
+    restart: unless-stopped
+    environment:
+      EXA_API_KEY: ${EXA_API_KEY:-6778d992-513b-42f0-8feb-f8d55a30dbaa}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      HOST: 0.0.0.0
+      PORT: 8000
+      LOG_LEVEL: info
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - research_net
+
+  # ── Spring Boot Backend ────────────────────────────────────────────────────
+  spring-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: research_spring_backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      python-agent:
+        condition: service_healthy
+    environment:
+      # Database
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: research_db
+      DB_USER: research_user
+      DB_PASSWORD: research_pass
+
+      # Redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+
+      # Python Agent
+      AGENT_BASE_URL: http://python-agent:8000
+
+      # JWT — MUST be overridden in production
+      JWT_SECRET: ${JWT_SECRET:-change-this-in-production-use-at-least-64-chars-long-secret-key}
+
+      # CORS
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:4200}
+
+      # Server
+      SERVER_PORT: 8080
+      LOG_LEVEL: info
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - research_net
+
+  # ── Prometheus (optional) ──────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: research_prometheus
+    restart: unless-stopped
+    volumes:
+      - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+    networks:
+      - research_net
+    profiles:
+      - monitoring
+
+  # ── Grafana (optional) ─────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: research_grafana
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin123}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "3001:3000"
+    networks:
+      - research_net
+    profiles:
+      - monitoring
+
+# ── Volumes ───────────────────────────────────────────────────────────────────
+volumes:
+  postgres_data:
+  redis_data:
+  prometheus_data:
+  grafana_data:
+
+# ── Networks ──────────────────────────────────────────────────────────────────
+networks:
+  research_net:
+    driver: bridge

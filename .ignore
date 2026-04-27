@@ -1,0 +1,6 @@
+# Yml
+src/main/resource/application.yml
+src/main/resource/db.migration
+
+#idea
+.idea

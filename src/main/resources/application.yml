@@ -1,0 +1,202 @@
+spring:
+  application:
+    name: research-backend
+
+  # ── Datasource ──────────────────────────────────────────────────────────
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:research_db}
+    username: ${DB_USER:research_user}
+    password: ${DB_PASSWORD:research_pass}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      pool-name: ResearchHikariPool
+      minimum-idle: 5
+      maximum-pool-size: 20
+      idle-timeout: 300000
+      connection-timeout: 20000
+      max-lifetime: 1200000
+
+  # ── JPA ─────────────────────────────────────────────────────────────────
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        default_schema: public
+        jdbc:
+          batch_size: 25
+        order_inserts: true
+        order_updates: true
+
+  # ── Flyway ──────────────────────────────────────────────────────────────
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+  # ── Redis ────────────────────────────────────────────────────────────────
+  data:
+    redis:
+      host: { }
+      port: 19389
+      username: default
+      password: {  }
+      ssl: true
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 16
+          max-idle: 8
+          min-idle: 2
+          max-wait: 1000ms
+
+  # ── Cache ────────────────────────────────────────────────────────────────
+  cache:
+    type: redis
+    redis:
+      time-to-live: 1800000   # 30 minutes
+      cache-null-values: false
+
+  # ── Jackson ──────────────────────────────────────────────────────────────
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+    deserialization:
+      fail-on-unknown-properties: false
+    time-zone: UTC
+
+  # ── Async ────────────────────────────────────────────────────────────────
+  task:
+    execution:
+      pool:
+        core-size: 8
+        max-size: 32
+        queue-capacity: 1000
+        keep-alive: 60s
+      thread-name-prefix: research-async-
+    scheduling:
+      pool:
+        size: 4
+      thread-name-prefix: research-scheduler-
+
+# ── Server ──────────────────────────────────────────────────────────────────
+server:
+  port: ${SERVER_PORT:8080}
+  servlet:
+    context-path: /api
+  compression:
+    enabled: true
+    mime-types: application/json,text/plain
+    min-response-size: 1024
+  error:
+    include-message: always
+    include-binding-errors: always
+
+# ── Actuator ────────────────────────────────────────────────────────────────
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus,loggers,threaddump,heapdump
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: when-authorized
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+
+# ── OpenAPI / Swagger ────────────────────────────────────────────────────────
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+  show-actuator: false
+
+# ── Application-specific ────────────────────────────────────────────────────
+app:
+  # Python FastAPI agent service
+  agent:
+    base-url: ${AGENT_BASE_URL:http://localhost:8000}
+    connect-timeout-ms: 5000
+    read-timeout-ms: 120000       # 2 min — pipeline can be slow
+    max-retries: 2
+    retry-delay-ms: 5000
+
+  # JWT
+  jwt:
+    secret: { }
+    expiration-ms: 86400000       # 24 hours
+    refresh-expiration-ms: 604800000  # 7 days
+
+  # Rate limiting
+  rate-limit:
+    research-requests-per-minute: 10
+    auth-requests-per-minute: 20
+
+  # CORS
+  cors:
+    allowed-origins: ${CORS_ORIGINS:http://localhost:4200,http://localhost:3000}
+    allowed-methods: GET,POST,PUT,DELETE,OPTIONS
+    max-age-seconds: 3600
+
+# ── Resilience4j ─────────────────────────────────────────────────────────────
+resilience4j:
+  circuitbreaker:
+    instances:
+      agentService:
+        register-health-indicator: true
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+        wait-duration-in-open-state: 30s
+        failure-rate-threshold: 50
+        slow-call-rate-threshold: 80
+        slow-call-duration-threshold: 90s
+        record-exceptions:
+          - java.io.IOException
+          - java.util.concurrent.TimeoutException
+          - org.springframework.web.reactive.function.client.WebClientRequestException
+  retry:
+    instances:
+      agentService:
+        max-attempts: 3
+        wait-duration: 5s
+        enable-exponential-backoff: true
+        exponential-backoff-multiplier: 2
+        retry-exceptions:
+          - java.io.IOException
+          - org.springframework.web.reactive.function.client.WebClientRequestException
+  timelimiter:
+    instances:
+      agentService:
+        timeout-duration: 120s
+        cancel-running-future: true
+
+# ── Logging ───────────────────────────────────────────────────────────────────
+logging:
+  level:
+    root: INFO
+    com.research.backend: DEBUG
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN
+    io.lettuce: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] [%X{correlationId}] %-5level %logger{36} - %msg%n"
