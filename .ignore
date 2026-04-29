@@ -4,3 +4,4 @@ src/main/resource/db.migration
 
 #idea
 .idea
+.vscode

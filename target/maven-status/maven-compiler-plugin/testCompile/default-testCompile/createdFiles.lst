@@ -1,0 +1,4 @@
+com/research/backend/JwtServiceTest.class
+com/research/backend/client/AgentGatewayClientTest.class
+com/research/backend/ResearchControllerTest.class
+com/research/backend/ResearchServiceTest.class

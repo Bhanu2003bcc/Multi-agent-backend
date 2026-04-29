@@ -46,6 +46,15 @@ public class GlobalExceptionHandler {
         return pd;
     }
 
+    @ExceptionHandler(UserAlreadyExistsException.class)
+    public ProblemDetail handleUserAlreadyExists(UserAlreadyExistsException ex) {
+        ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.CONFLICT);
+        pd.setTitle("Registration conflict");
+        pd.setDetail(ex.getMessage());
+        pd.setProperty("timestamp", Instant.now());
+        return pd;
+    }
+
     @ExceptionHandler(ResourceAccessDeniedException.class)
     public ProblemDetail handleAccessDenied(ResourceAccessDeniedException ex) {
         ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.FORBIDDEN);
@@ -88,7 +97,8 @@ public class GlobalExceptionHandler {
     public ProblemDetail handleAgentClientError(AgentClientException ex) {
         log.error("Agent client error ({}): {}", ex.getStatusCode(), ex.getMessage());
         HttpStatus status = ex.getStatusCode() >= 500
-                ? HttpStatus.BAD_GATEWAY : HttpStatus.UNPROCESSABLE_ENTITY;
+                ? HttpStatus.BAD_GATEWAY
+                : HttpStatus.UNPROCESSABLE_ENTITY;
         ProblemDetail pd = ProblemDetail.forStatus(status);
         pd.setTitle("Agent service error");
         pd.setDetail("The research pipeline returned an error. Please try again.");

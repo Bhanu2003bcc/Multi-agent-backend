@@ -44,7 +44,6 @@ public class ResearchResult extends BaseEntity {
     @Column(name = "pipeline_errors", columnDefinition = "jsonb")
     private List<String> pipelineErrors;
 
-    @Embeddable
     @Getter
     @Setter
     @NoArgsConstructor

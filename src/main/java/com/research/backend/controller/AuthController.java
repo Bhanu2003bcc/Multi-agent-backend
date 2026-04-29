@@ -1,8 +1,10 @@
 package com.research.backend.controller;
 
 import com.research.backend.dto.request.LoginRequest;
+import com.research.backend.dto.request.RegisterRequest;
 import com.research.backend.dto.response.AuthResponse;
 import com.research.backend.security.JwtService;
+import com.research.backend.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -24,14 +26,20 @@ public class AuthController {
 
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
+    private final AuthService authService;
+
+    @PostMapping("/register")
+    @Operation(summary = "Register a new user and receive JWT tokens")
+    public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
+        return ResponseEntity.status(201).body(authService.register(request));
+    }
 
     @PostMapping("/login")
     @Operation(summary = "Authenticate and receive JWT tokens")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
-                        request.getUsername(), request.getPassword())
-        );
+                        request.getUsername(), request.getPassword()));
 
         UserDetails userDetails = (UserDetails) authentication.getPrincipal();
         String accessToken = jwtService.generateAccessToken(userDetails);

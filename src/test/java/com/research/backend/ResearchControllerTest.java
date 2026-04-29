@@ -29,83 +29,82 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(
-    controllers = ResearchController.class,
-    excludeFilters = @ComponentScan.Filter(
-        type = FilterType.ASSIGNABLE_TYPE,
-        classes = JwtAuthenticationFilter.class
-    )
-)
+@WebMvcTest(controllers = ResearchController.class, excludeFilters = @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = JwtAuthenticationFilter.class))
 class ResearchControllerTest {
 
-    @Autowired MockMvc mockMvc;
-    @Autowired ObjectMapper objectMapper;
+        @Autowired
+        MockMvc mockMvc;
+        @Autowired
+        ObjectMapper objectMapper;
 
-    @MockBean ResearchService researchService;
-    @MockBean JobEventPublisher eventPublisher;
+        @MockBean
+        ResearchService researchService;
+        @MockBean
+        JobEventPublisher eventPublisher;
 
-    @Test
-    @WithMockUser(username = "testuser", roles = "USER")
-    @DisplayName("POST /v1/research should return 202 Accepted with jobId")
-    void submitResearch_validRequest_returns202() throws Exception {
-        UUID jobId = UUID.randomUUID();
-        JobSubmittedResponse mockResponse = JobSubmittedResponse.builder()
-                .jobId(jobId)
-                .status(JobStatus.CREATED)
-                .createdAt(Instant.now())
-                .streamUrl("/api/v1/research/" + jobId + "/stream")
-                .statusUrl("/api/v1/research/" + jobId)
-                .build();
+        @Test
+        @WithMockUser(username = "testuser", roles = "USER")
+        @DisplayName("POST /v1/research should return 202 Accepted with jobId")
+        void submitResearch_validRequest_returns202() throws Exception {
+                UUID jobId = UUID.randomUUID();
+                JobSubmittedResponse mockResponse = JobSubmittedResponse.builder()
+                                .jobId(jobId)
+                                .status(JobStatus.CREATED)
+                                .createdAt(Instant.now())
+                                .streamUrl("/api/v1/research/" + jobId + "/stream")
+                                .statusUrl("/api/v1/research/" + jobId)
+                                .build();
 
-        when(researchService.submitJob(any(ResearchRequest.class), eq("testuser")))
-                .thenReturn(mockResponse);
+                when(researchService.submitJob(any(ResearchRequest.class), eq("testuser")))
+                                .thenReturn(mockResponse);
 
-        ResearchRequest request = ResearchRequest.builder()
-                .query("What are the latest quantum computing breakthroughs?")
-                .searchTopN(10)
-                .rerankerTopK(5)
-                .retrieverTopK(8)
-                .refinementIterations(2)
-                .build();
+                ResearchRequest request = ResearchRequest.builder()
+                                .query("What are the latest quantum computing breakthroughs?")
+                                .searchTopN(10)
+                                .rerankerTopK(5)
+                                .retrieverTopK(8)
+                                .refinementIterations(2)
+                                .build();
 
-        mockMvc.perform(post("/v1/research")
-                        .with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isAccepted())
-                .andExpect(jsonPath("$.jobId").value(jobId.toString()))
-                .andExpect(jsonPath("$.status").value("CREATED"))
-                .andExpect(jsonPath("$.streamUrl").exists())
-                .andExpect(jsonPath("$.statusUrl").exists());
-    }
+                mockMvc.perform(post("/v1/research")
+                                .with(csrf())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request)))
+                                .andExpect(status().isAccepted())
+                                .andExpect(jsonPath("$.jobId").value(jobId.toString()))
+                                .andExpect(jsonPath("$.status").value("CREATED"))
+                                .andExpect(jsonPath("$.streamUrl").exists())
+                                .andExpect(jsonPath("$.statusUrl").exists());
+        }
 
-    @Test
-    @WithMockUser(username = "testuser", roles = "USER")
-    @DisplayName("POST /v1/research should return 400 for blank query")
-    void submitResearch_blankQuery_returns400() throws Exception {
-        ResearchRequest badRequest = ResearchRequest.builder()
-                .query("  ")
-                .build();
+        @Test
+        @WithMockUser(username = "testuser", roles = "USER")
+        @DisplayName("POST /v1/research should return 400 for blank query")
+        void submitResearch_blankQuery_returns400() throws Exception {
+                ResearchRequest badRequest = ResearchRequest.builder()
+                                .query("  ")
+                                .build();
 
-        mockMvc.perform(post("/v1/research")
-                        .with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(badRequest)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.title").value("Validation failed"))
-                .andExpect(jsonPath("$.violations.query").exists());
-    }
+                mockMvc.perform(post("/v1/research")
+                                .with(csrf())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(badRequest)))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(jsonPath("$.title").value("Validation failed"))
+                                .andExpect(jsonPath("$.violations.query").exists());
+        }
 
-    @Test
-    @DisplayName("POST /v1/research should return 401 for unauthenticated request")
-    void submitResearch_unauthenticated_returns401() throws Exception {
-        ResearchRequest request = ResearchRequest.builder()
-                .query("test query")
-                .build();
+        @Test
+        @DisplayName("POST /v1/research should return 401 for unauthenticated request")
+        void submitResearch_unauthenticated_returns401() throws Exception {
+                ResearchRequest request = ResearchRequest.builder()
+                                .query("test query")
+                                .build();
 
-        mockMvc.perform(post("/v1/research")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isUnauthorized());
-    }
+                mockMvc.perform(post("/v1/research")
+                                .with(csrf()) // Add CSRF to avoid 403 (Forbidden)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request)))
+                                .andExpect(status().isUnauthorized());
+        }
 }
