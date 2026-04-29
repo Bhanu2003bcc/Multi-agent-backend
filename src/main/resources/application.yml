@@ -4,9 +4,9 @@ spring:
 
   # ── Datasource ──────────────────────────────────────────────────────────
   datasource:
-    url: jdbc:postgresql://aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres
-    username: postgres.ctlazzxzqwtkjvlhypsc
-    password: bC1NKcn48A5Icyjr
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
     hikari:
       pool-name: ResearchHikariPool
@@ -40,10 +40,10 @@ spring:
   # ── Redis ────────────────────────────────────────────────────────────────
   data:
     redis:
-      host: redis-19389.c301.ap-south-1-1.ec2.cloud.redislabs.com
-      port: 19389
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+      password: ${REDIS_PASSWORD}
       username: default
-      password: CktWmY4qwFP8gpm1whQoTvfe5uknYPEZ
       ssl:
         enabled: true
       timeout: 2000ms
@@ -142,7 +142,7 @@ app:
 
   # JWT
   jwt:
-    secret: 64265eb083d1c042aee6bc6296f269055de423d7c6657ed6c5b941c9a9e0deba
+    secret: ${JWT_SECRET}
     expiration-ms: 86400000       # 24 hours
     refresh-expiration-ms: 604800000  # 7 days
 
